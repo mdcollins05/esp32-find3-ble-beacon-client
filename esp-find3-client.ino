@@ -41,15 +41,23 @@
 // Official server: cloud.internalpositioning.com
 #define FIND_HOST "cloud.internalpositioning.com"
 // Official port: 443 and SSL set to 1
-#define FIND_PORT 442
+#define FIND_PORT 443
 // Whether to use SSL for the HTTP connection.
 // Set to 1 for official cloud server.
 #define USE_HTTP_SSL 1
 // Timeout connecting to find3 server expressed in milliseconds.
-#define HTTP_TIMEOUT 2500
+#define HTTP_TIMEOUT 5000
 
 // Set to 1 to enable. Used for verbose debugging.
 #define DEBUG 0
+
+// Restart every 7 days?
+#define AUTO_RESTART 0
+
+// Set to 1 to enable LED blinking
+#define BLINK_LED 1
+// Change the LED pin if needed for your board
+#define LED_PIN 2
 
 ///////////////////////////////////////////////////////////////////////////
 //                              INTERNALS                                //
@@ -61,8 +69,6 @@
 WiFiMulti wifiMulti;
 
 #define GET_CHIP_ID() String(((uint16_t)(ESP.getEfuseMac() >> 32)), HEX)
-
-#define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
 
 #define ARDUINOJSON_USE_LONG_LONG 1
 #include <ArduinoJson.h>
@@ -78,7 +84,20 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   }
 };
 
+void blinkLED(int duration_on, int duration_off, int count) {
+  if (BLINK_LED == 1) {
+    for (int i = 0; i < count; i++) {
+      digitalWrite(LED_PIN, HIGH);
+      delay(duration_on);
+      digitalWrite(LED_PIN, LOW);
+      delay(duration_off);
+    }
+  }
+}
+
 void scan(void) {
+  blinkLED(800, 200, 1);
+
   String request;
 
   StaticJsonDocument<256> jsonBuffer;
@@ -149,6 +168,7 @@ void scan(void) {
   while (client.available() == 0) {
     if (millis() - timeout > HTTP_TIMEOUT) {
       Serial.println("[ ERROR ]\tHTTP Client Timeout !");
+      blinkLED(200, 100, 4);
       client.stop();
       return;
     }
@@ -160,6 +180,7 @@ void scan(void) {
   if (strcmp(status, "HTTP/1.1 200 OK") != 0) {
     Serial.print(F("[ ERROR ]\tUnexpected Response: "));
     Serial.println(status);
+    blinkLED(200, 100, 4);
     return;
   } else {
     Serial.println(F("[ INFO ]\tGot a 200 OK."));
@@ -168,6 +189,7 @@ void scan(void) {
   char endOfHeaders[] = "\r\n\r\n";
   if (!client.find(endOfHeaders)) {
     Serial.println(F("[ ERROR ]\t Invalid Response"));
+    blinkLED(200, 100, 4);
     return;
   } else {
     Serial.println("[ INFO ]\tLooks like a valid response.");
@@ -181,6 +203,8 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
+  pinMode(LED_PIN, OUTPUT);
+
   Serial.println("Find3 ESP32 client by DatanoiseTV (Modified by mdcollins05) (BLE support)");
 
   Serial.print("[ INFO ]\tChipID is: ");
@@ -189,18 +213,35 @@ void setup() {
   wifiMulti.addAP(WIFI_SSID, WIFI_PSK);
 
   Serial.println("[ INFO ]\tConnecting to WiFi..");
+  
+  blinkLED(200, 100, 1);
+
   if (wifiMulti.run() == WL_CONNECTED) {
     Serial.println("[ INFO ]\tWiFi connection established.");
     Serial.print("[ INFO ]\tIP address: ");
     Serial.println(WiFi.localIP());
+    blinkLED(200, 100, 2);
+    delay(1000);
   }
 }
 
 void loop() {
+  int attemptsCount = 0;
   if (wifiMulti.run() != WL_CONNECTED) {
     Serial.println("[ WARN ]\tWiFi not connected, retrying...");
+    blinkLED(200, 100, 5);
     delay(1000);
+    attemptsCount++;
+    if (attemptsCount >= 10) {
+      ESP.restart();
+    }
     return;
   }
   scan();
+
+  if (AUTO_RESTART == 1) {
+    if ( millis()  >= 604800000UL ) {
+      ESP.restart();
+    }
+  }
 }
