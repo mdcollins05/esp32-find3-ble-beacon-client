@@ -28,7 +28,7 @@
 #define WIFI_PSK ""
 
 // Family name.
-#define FAMILY_NAME ""
+#define FAMILY_NAME "e"
 
 #define DEVICE_NAME ""
 
@@ -55,7 +55,7 @@
 #define AUTO_RESTART 0
 
 // Set to 1 to enable LED blinking
-#define BLINK_LED 1
+#define BLINK_LED 0
 // Change the LED pin if needed for your board
 #define LED_PIN 2
 
@@ -65,8 +65,6 @@
 
 #include <WiFiClientSecure.h>
 #include <WiFi.h>
-#include <WiFiMulti.h>
-WiFiMulti wifiMulti;
 
 #define GET_CHIP_ID() String(((uint16_t)(ESP.getEfuseMac() >> 32)), HEX)
 
@@ -92,6 +90,8 @@ void blinkLED(int duration_on, int duration_off, int count) {
       digitalWrite(LED_PIN, LOW);
       delay(duration_off);
     }
+  } else {
+    delay(duration_off);
   }
 }
 
@@ -168,7 +168,7 @@ void scan(void) {
   while (client.available() == 0) {
     if (millis() - timeout > HTTP_TIMEOUT) {
       Serial.println("[ ERROR ]\tHTTP Client Timeout !");
-      blinkLED(200, 100, 4);
+      blinkLED(800, 200, 2);
       client.stop();
       return;
     }
@@ -180,7 +180,7 @@ void scan(void) {
   if (strcmp(status, "HTTP/1.1 200 OK") != 0) {
     Serial.print(F("[ ERROR ]\tUnexpected Response: "));
     Serial.println(status);
-    blinkLED(200, 100, 4);
+    blinkLED(800, 200, 2);
     return;
   } else {
     Serial.println(F("[ INFO ]\tGot a 200 OK."));
@@ -189,7 +189,7 @@ void scan(void) {
   char endOfHeaders[] = "\r\n\r\n";
   if (!client.find(endOfHeaders)) {
     Serial.println(F("[ ERROR ]\t Invalid Response"));
-    blinkLED(200, 100, 4);
+    blinkLED(800, 200, 2);
     return;
   } else {
     Serial.println("[ INFO ]\tLooks like a valid response.");
@@ -210,33 +210,52 @@ void setup() {
   Serial.print("[ INFO ]\tChipID is: ");
   Serial.println("esp-" + GET_CHIP_ID());
 
-  wifiMulti.addAP(WIFI_SSID, WIFI_PSK);
+  WiFi.setHostname(DEVICE_NAME);
 
-  Serial.println("[ INFO ]\tConnecting to WiFi..");
-  
-  blinkLED(200, 100, 1);
+  int attemptsCount = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    if (attemptsCount == 0) {
+      Serial.println("[ INFO ]\tConnecting to WiFi..");
+      blinkLED(200, 200, 1);
+    } else {
+      Serial.println("[ WARN ]\tWiFi not connected, retrying...");
+      blinkLED(200, 200, 3);
+      WiFi.disconnect();
+      delay(5000);
+    }
+    
+    WiFi.begin(WIFI_SSID, WIFI_PSK);
+    delay(5000);
+    attemptsCount++;
+    if (attemptsCount >= 10) {
+      ESP.restart();
+    }
+  }
 
-  if (wifiMulti.run() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED) {
     Serial.println("[ INFO ]\tWiFi connection established.");
     Serial.print("[ INFO ]\tIP address: ");
     Serial.println(WiFi.localIP());
-    blinkLED(200, 100, 2);
+    blinkLED(200, 200, 2);
     delay(1000);
   }
 }
 
 void loop() {
   int attemptsCount = 0;
-  if (wifiMulti.run() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED) {
     Serial.println("[ WARN ]\tWiFi not connected, retrying...");
-    blinkLED(200, 100, 5);
-    delay(1000);
+    blinkLED(200, 200, 3);
+    WiFi.disconnect();
+    delay(5000);
+    WiFi.begin(WIFI_SSID, WIFI_PSK);
+    delay(5000);
     attemptsCount++;
     if (attemptsCount >= 10) {
       ESP.restart();
     }
-    return;
   }
+
   scan();
 
   if (AUTO_RESTART == 1) {
