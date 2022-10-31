@@ -28,7 +28,7 @@
 #define WIFI_PSK ""
 
 // Family name.
-#define FAMILY_NAME "e"
+#define FAMILY_NAME ""
 
 #define DEVICE_NAME ""
 
