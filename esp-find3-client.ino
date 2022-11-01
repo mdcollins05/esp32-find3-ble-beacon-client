@@ -29,7 +29,7 @@
 
 // Family name.
 #define FAMILY_NAME ""
-
+// Device name for both Wifi and Find3
 #define DEVICE_NAME ""
 
 // BLE requires large app partition or the sketch will not fit.
@@ -141,15 +141,16 @@ void scan(void) {
 
   serializeJson(root, request);
 
-#if (DEBUG == 1)
-  Serial.println("[ DEBUG ]\t" + request);
-#endif
+  if (DEBUG == 1) {
+    Serial.println("[ DEBUG ]\t" + request);
+  }
 
-#if (USE_HTTP_SSL == 1)
-  WiFiClientSecure client;
-#else
-  WiFiClient client;
-#endif
+  #if (USE_HTTP_SSL == 1)
+    WiFiClientSecure client;
+  #else
+    WiFiClient client;
+  #endif
+  
   if (!client.connect(FIND_HOST, FIND_PORT)) {
     Serial.println("[ WARN ]\tConnection to server failed...");
     return;
@@ -227,7 +228,7 @@ void setup() {
     WiFi.begin(WIFI_SSID, WIFI_PSK);
     delay(5000);
     attemptsCount++;
-    if (attemptsCount >= 10) {
+    if (attemptsCount >= 4) {
       ESP.restart();
     }
   }
@@ -251,7 +252,7 @@ void loop() {
     WiFi.begin(WIFI_SSID, WIFI_PSK);
     delay(5000);
     attemptsCount++;
-    if (attemptsCount >= 10) {
+    if (attemptsCount >= 4) {
       ESP.restart();
     }
   }
